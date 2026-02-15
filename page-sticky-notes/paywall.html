@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Upgrade Page Sticky Notes</title>
+    <style>
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        background: linear-gradient(120deg, #fff8d5, #fbeaa3);
+        color: #3a2f0f;
+      }
+      .card {
+        width: min(420px, calc(100% - 32px));
+        background: #fffdf4;
+        border-radius: 16px;
+        padding: 24px;
+        box-shadow: 0 16px 30px rgba(77, 55, 11, 0.2);
+      }
+      h1 { margin-top: 0; }
+      p { line-height: 1.5; }
+      .price { font-size: 22px; font-weight: 700; margin: 14px 0; }
+      button {
+        border: 0;
+        border-radius: 12px;
+        padding: 12px 14px;
+        width: 100%;
+        font-weight: 700;
+        background: #f4cc41;
+        color: #2e2a1f;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <article class="card">
+      <h1>You've hit the free limit</h1>
+      <p>
+        Free plan includes up to 5 sticky notes across all pages. Upgrade to Pro for unlimited notes,
+        syncing, and future premium features.
+      </p>
+      <p class="price">Pro: $2.99 / month (placeholder)</p>
+      <button type="button">Upgrade to Pro (coming soon)</button>
+    </article>
+  </body>
+</html>
