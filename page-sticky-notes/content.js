@@ -1,0 +1,319 @@
+(() => {
+  const NOTE_ID = 'psn-sticky-note';
+  const FREE_NOTE_LIMIT = 5;
+  const DEFAULT_META = { noteCount: 0, isPro: false, enabled: true };
+
+  let currentPageKey = getPageKey();
+  let noteRoot = null;
+  let copyCooldown = false;
+
+  function getPageKey(url = window.location) {
+    return `${url.hostname}${url.pathname}`;
+  }
+
+  function getViewportBounds() {
+    return {
+      width: window.innerWidth,
+      height: window.innerHeight
+    };
+  }
+
+  function clampPosition(position = {}, viewport = getViewportBounds()) {
+    const defaultX = Math.max(16, viewport.width - 332);
+    const safeX = Number.isFinite(position.x) ? position.x : defaultX;
+    const safeY = Number.isFinite(position.y) ? position.y : 96;
+
+    return {
+      x: Math.min(Math.max(8, safeX), Math.max(8, viewport.width - 24)),
+      y: Math.min(Math.max(8, safeY), Math.max(8, viewport.height - 24))
+    };
+  }
+
+  function debounce(fn, delay = 300) {
+    let timeout = null;
+    return (...args) => {
+      window.clearTimeout(timeout);
+      timeout = window.setTimeout(() => fn(...args), delay);
+    };
+  }
+
+  function canCreateNote(meta) {
+    if (meta?.isPro) {
+      return true;
+    }
+    return (meta?.noteCount || 0) < FREE_NOTE_LIMIT;
+  }
+
+  async function getState() {
+    const result = await chrome.storage.local.get(['notes', 'meta']);
+    const notes = result.notes && typeof result.notes === 'object' ? result.notes : {};
+    const meta = { ...DEFAULT_META, ...(result.meta || {}) };
+
+    const count = Object.keys(notes).length;
+    if (meta.noteCount !== count) {
+      meta.noteCount = count;
+      await chrome.storage.local.set({ meta, notes });
+    }
+
+    return { notes, meta };
+  }
+
+  async function upsertNote(pageKey, noteData) {
+    const { notes, meta } = await getState();
+    const hadNote = Boolean(notes[pageKey]);
+
+    notes[pageKey] = {
+      ...notes[pageKey],
+      ...noteData,
+      updatedAt: Date.now()
+    };
+
+    const nextMeta = {
+      ...meta,
+      noteCount: hadNote ? meta.noteCount : meta.noteCount + 1
+    };
+
+    await chrome.storage.local.set({ notes, meta: nextMeta });
+    return { notes, meta: nextMeta };
+  }
+
+  async function removeNoteFromStore(pageKey) {
+    const { notes, meta } = await getState();
+    if (!notes[pageKey]) {
+      return;
+    }
+
+    delete notes[pageKey];
+    const nextMeta = { ...meta, noteCount: Math.max(0, meta.noteCount - 1) };
+    await chrome.storage.local.set({ notes, meta: nextMeta });
+  }
+
+  async function initForCurrentPage() {
+    const { notes, meta } = await getState();
+    if (!meta.enabled) {
+      removeNote();
+      return;
+    }
+
+    const saved = notes[currentPageKey];
+    if (saved) {
+      renderNote(saved);
+    } else {
+      removeNote();
+    }
+  }
+
+  function removeNote() {
+    if (noteRoot) {
+      noteRoot.remove();
+      noteRoot = null;
+    }
+  }
+
+  function renderNote(noteData) {
+    removeNote();
+
+    const note = document.createElement('section');
+    note.id = NOTE_ID;
+    note.className = 'psn-note';
+
+    const position = clampPosition(noteData.position || {});
+    note.style.left = `${position.x}px`;
+    note.style.top = `${position.y}px`;
+
+    note.innerHTML = `
+      <header class="psn-header">
+        <strong class="psn-title">Sticky Note</strong>
+        <div class="psn-actions">
+          <button type="button" class="psn-btn psn-copy">📋 Copy</button>
+          <button type="button" class="psn-btn psn-delete">🗑 Delete</button>
+        </div>
+      </header>
+      <textarea class="psn-text" placeholder="Write something useful..."></textarea>
+    `;
+
+    const textArea = note.querySelector('.psn-text');
+    const copyButton = note.querySelector('.psn-copy');
+    const deleteButton = note.querySelector('.psn-delete');
+    const header = note.querySelector('.psn-header');
+
+    textArea.value = noteData.text || '';
+    copyButton.disabled = !textArea.value.trim();
+
+    const saveDebounced = debounce(async () => {
+      await upsertNote(currentPageKey, {
+        text: textArea.value,
+        position: {
+          x: parseFloat(note.style.left),
+          y: parseFloat(note.style.top)
+        }
+      });
+    }, 500);
+
+    textArea.addEventListener('input', () => {
+      copyButton.disabled = !textArea.value.trim();
+      saveDebounced();
+    });
+
+    deleteButton.addEventListener('click', async () => {
+      await removeNoteFromStore(currentPageKey);
+      removeNote();
+    });
+
+    copyButton.addEventListener('click', async () => {
+      if (copyCooldown || !textArea.value.trim()) {
+        return;
+      }
+
+      copyCooldown = true;
+      copyButton.disabled = true;
+      const originalLabel = copyButton.textContent;
+
+      try {
+        await navigator.clipboard.writeText(textArea.value);
+        copyButton.textContent = 'Copied!';
+      } catch (error) {
+        console.error('Copy to clipboard failed:', error);
+        copyButton.textContent = 'Copy failed';
+      }
+
+      window.setTimeout(() => {
+        copyButton.textContent = originalLabel;
+        copyButton.disabled = !textArea.value.trim();
+        copyCooldown = false;
+      }, 1500);
+    });
+
+    makeDraggable(note, header, async () => {
+      await upsertNote(currentPageKey, {
+        text: textArea.value,
+        position: {
+          x: parseFloat(note.style.left),
+          y: parseFloat(note.style.top)
+        }
+      });
+    });
+
+    document.body.appendChild(note);
+    noteRoot = note;
+  }
+
+  function makeDraggable(note, dragHandle, onDrop) {
+    let dragging = false;
+    let startOffsetX = 0;
+    let startOffsetY = 0;
+
+    dragHandle.addEventListener('pointerdown', (event) => {
+      if (event.target.closest('button')) {
+        return;
+      }
+
+      dragging = true;
+      note.setPointerCapture(event.pointerId);
+      const rect = note.getBoundingClientRect();
+      startOffsetX = event.clientX - rect.left;
+      startOffsetY = event.clientY - rect.top;
+      note.classList.add('is-dragging');
+    });
+
+    note.addEventListener('pointermove', (event) => {
+      if (!dragging) {
+        return;
+      }
+
+      const next = clampPosition({
+        x: event.clientX - startOffsetX,
+        y: event.clientY - startOffsetY
+      });
+
+      note.style.left = `${next.x}px`;
+      note.style.top = `${next.y}px`;
+    });
+
+    note.addEventListener('pointerup', async (event) => {
+      if (!dragging) {
+        return;
+      }
+
+      dragging = false;
+      note.releasePointerCapture(event.pointerId);
+      note.classList.remove('is-dragging');
+      await onDrop();
+    });
+  }
+
+  async function tryCreateNote() {
+    const { notes, meta } = await getState();
+
+    if (!meta.enabled) {
+      return { ok: false, reason: 'disabled' };
+    }
+
+    if (notes[currentPageKey]) {
+      renderNote(notes[currentPageKey]);
+      return { ok: true, reason: 'exists' };
+    }
+
+    if (!canCreateNote(meta)) {
+      chrome.runtime.sendMessage({ type: 'OPEN_PAYWALL' });
+      return { ok: false, reason: 'limit' };
+    }
+
+    const newNote = {
+      text: '',
+      position: clampPosition({}),
+      updatedAt: Date.now()
+    };
+
+    await upsertNote(currentPageKey, newNote);
+    renderNote(newNote);
+    return { ok: true, reason: 'created' };
+  }
+
+  chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+    if (message?.type === 'CREATE_NOTE_FOR_PAGE') {
+      tryCreateNote()
+        .then((result) => sendResponse(result))
+        .catch((error) => {
+          console.error('Failed to create note:', error);
+          sendResponse({ ok: false, reason: 'error' });
+        });
+      return true;
+    }
+
+    if (message?.type === 'REFRESH_NOTE_STATE') {
+      initForCurrentPage()
+        .then(() => sendResponse({ ok: true }))
+        .catch(() => sendResponse({ ok: false }));
+      return true;
+    }
+
+    return false;
+  });
+
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName === 'local' && (changes.meta || changes.notes)) {
+      initForCurrentPage().catch((error) => {
+        console.error('Failed to refresh note after storage change:', error);
+      });
+    }
+  });
+
+  const observeUrlChange = () => {
+    let previousHref = window.location.href;
+    window.setInterval(() => {
+      if (window.location.href !== previousHref) {
+        previousHref = window.location.href;
+        currentPageKey = getPageKey();
+        initForCurrentPage().catch((error) => {
+          console.error('Failed to reinitialize on URL change:', error);
+        });
+      }
+    }, 500);
+  };
+
+  observeUrlChange();
+  initForCurrentPage().catch((error) => {
+    console.error('Failed to initialize sticky note content script:', error);
+  });
+})();

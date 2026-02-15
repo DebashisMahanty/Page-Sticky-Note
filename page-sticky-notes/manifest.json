@@ -1,0 +1,30 @@
+{
+  "manifest_version": 3,
+  "name": "Page Sticky Notes",
+  "description": "Create one sticky note per webpage with auto-save, drag positioning, copy-to-clipboard, and freemium limits.",
+  "version": "1.0.0",
+  "permissions": ["storage", "activeTab", "scripting", "clipboardWrite"],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Page Sticky Notes"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "css": ["styles.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["paywall.html"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}
