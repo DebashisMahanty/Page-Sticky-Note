@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "Quick Vault Panel",
+  "description": "A global notes vault in Chrome side panel with fast copy and inline editing.",
+  "version": "1.0.0",
+  "minimum_chrome_version": "114",
+  "permissions": ["storage", "sidePanel", "activeTab"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Quick Vault Panel"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  }
+}
