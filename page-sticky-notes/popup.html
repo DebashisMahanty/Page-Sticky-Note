@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Page Sticky Notes</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main class="popup">
+      <h1>Page Sticky Notes</h1>
+      <p id="statusText" class="status">Loading...</p>
+
+      <label class="toggle-row" for="enabledToggle">
+        <span>Enable on pages</span>
+        <input id="enabledToggle" type="checkbox" />
+      </label>
+
+      <button id="addNoteBtn" class="primary-btn" type="button">Add note for this page</button>
+      <p id="usageText" class="usage">Notes used: 0 / 5</p>
+    </main>
+
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>

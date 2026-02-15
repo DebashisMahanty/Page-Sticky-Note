@@ -1,0 +1,67 @@
+#psn-sticky-note.psn-note {
+  position: fixed;
+  z-index: 2147483647;
+  width: 320px;
+  min-height: 220px;
+  background: #fff3a5;
+  border: 1px solid rgba(155, 125, 22, 0.26);
+  border-radius: 14px;
+  box-shadow: 0 16px 30px rgba(87, 71, 21, 0.25);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+#psn-sticky-note .psn-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px;
+  background: rgba(249, 214, 72, 0.9);
+  cursor: grab;
+  user-select: none;
+}
+
+#psn-sticky-note.is-dragging .psn-header {
+  cursor: grabbing;
+}
+
+#psn-sticky-note .psn-title {
+  font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 13px;
+  color: #553d00;
+}
+
+#psn-sticky-note .psn-actions {
+  display: flex;
+  gap: 6px;
+}
+
+#psn-sticky-note .psn-btn {
+  border: 0;
+  border-radius: 8px;
+  padding: 6px 8px;
+  font-size: 12px;
+  cursor: pointer;
+  background: #fff8d7;
+  color: #40340d;
+}
+
+#psn-sticky-note .psn-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+#psn-sticky-note .psn-text {
+  flex: 1;
+  resize: none;
+  border: 0;
+  outline: none;
+  background: transparent;
+  padding: 12px;
+  font-size: 14px;
+  line-height: 1.4;
+  font-family: 'Segoe UI', Inter, sans-serif;
+  color: #2b250f;
+}

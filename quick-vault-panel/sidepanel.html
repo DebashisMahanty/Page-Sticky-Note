@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Quick Vault Panel</title>
+    <link rel="stylesheet" href="sidepanel.css" />
+  </head>
+  <body>
+    <main class="panel">
+      <header class="panel-header">
+        <div>
+          <h1>Quick Vault</h1>
+          <p id="subText">Global notes available across all websites.</p>
+        </div>
+        <button id="newNoteBtn" class="new-btn" type="button">+ New Note</button>
+      </header>
+
+      <section id="emptyState" class="empty-state" hidden>
+        No notes yet. Create your first vault note.
+      </section>
+
+      <section id="notesList" class="notes-list" aria-label="Vault notes"></section>
+    </main>
+
+    <template id="noteCardTemplate">
+      <article class="note-card">
+        <textarea class="note-editor" placeholder="Write your note..."></textarea>
+        <p class="note-preview"></p>
+        <div class="note-meta"></div>
+        <div class="note-actions">
+          <button type="button" class="btn copy-btn">📋 Copy</button>
+          <button type="button" class="btn edit-btn">✏️ Edit</button>
+          <button type="button" class="btn delete-btn danger">🗑 Delete</button>
+        </div>
+      </article>
+    </template>
+
+    <script type="module" src="sidepanel.js"></script>
+  </body>
+</html>

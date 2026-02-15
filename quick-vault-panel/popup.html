@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Quick Vault Panel</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main class="popup">
+      <h1>Quick Vault Panel</h1>
+      <p id="statusText" class="status">Vault status: ON</p>
+
+      <label class="toggle-row" for="vaultToggle">
+        <span>Vault: ON/OFF</span>
+        <input id="vaultToggle" type="checkbox" />
+      </label>
+
+      <button id="openVaultBtn" class="primary-btn" type="button">Open Vault</button>
+    </main>
+
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>
