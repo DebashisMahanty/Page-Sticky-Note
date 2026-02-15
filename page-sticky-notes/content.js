@@ -1,103 +1,30 @@
-(() => {
-  const NOTE_ID = 'psn-sticky-note';
-  const FREE_NOTE_LIMIT = 5;
-  const DEFAULT_META = { noteCount: 0, isPro: false, enabled: true };
+(async () => {
+  const { ensureStorageDefaults, getState, getPageKey, upsertNote, deleteNote } = await import(
+    chrome.runtime.getURL('utils/storage.js')
+  );
+  const { canCreateNote } = await import(chrome.runtime.getURL('utils/freemium.js'));
+  const { debounce, clampPosition } = await import(chrome.runtime.getURL('utils/dom.js'));
 
+  const NOTE_ID = 'psn-sticky-note';
   let currentPageKey = getPageKey();
   let noteRoot = null;
+  let isEnabled = true;
   let copyCooldown = false;
 
-  function getPageKey(url = window.location) {
-    return `${url.hostname}${url.pathname}`;
-  }
-
-  function getViewportBounds() {
-    return {
-      width: window.innerWidth,
-      height: window.innerHeight
-    };
-  }
-
-  function clampPosition(position = {}, viewport = getViewportBounds()) {
-    const defaultX = Math.max(16, viewport.width - 332);
-    const safeX = Number.isFinite(position.x) ? position.x : defaultX;
-    const safeY = Number.isFinite(position.y) ? position.y : 96;
-
-    return {
-      x: Math.min(Math.max(8, safeX), Math.max(8, viewport.width - 24)),
-      y: Math.min(Math.max(8, safeY), Math.max(8, viewport.height - 24))
-    };
-  }
-
-  function debounce(fn, delay = 300) {
-    let timeout = null;
-    return (...args) => {
-      window.clearTimeout(timeout);
-      timeout = window.setTimeout(() => fn(...args), delay);
-    };
-  }
-
-  function canCreateNote(meta) {
-    if (meta?.isPro) {
-      return true;
-    }
-    return (meta?.noteCount || 0) < FREE_NOTE_LIMIT;
-  }
-
-  async function getState() {
-    const result = await chrome.storage.local.get(['notes', 'meta']);
-    const notes = result.notes && typeof result.notes === 'object' ? result.notes : {};
-    const meta = { ...DEFAULT_META, ...(result.meta || {}) };
-
-    const count = Object.keys(notes).length;
-    if (meta.noteCount !== count) {
-      meta.noteCount = count;
-      await chrome.storage.local.set({ meta, notes });
-    }
-
-    return { notes, meta };
-  }
-
-  async function upsertNote(pageKey, noteData) {
-    const { notes, meta } = await getState();
-    const hadNote = Boolean(notes[pageKey]);
-
-    notes[pageKey] = {
-      ...notes[pageKey],
-      ...noteData,
-      updatedAt: Date.now()
-    };
-
-    const nextMeta = {
-      ...meta,
-      noteCount: hadNote ? meta.noteCount : meta.noteCount + 1
-    };
-
-    await chrome.storage.local.set({ notes, meta: nextMeta });
-    return { notes, meta: nextMeta };
-  }
-
-  async function removeNoteFromStore(pageKey) {
-    const { notes, meta } = await getState();
-    if (!notes[pageKey]) {
-      return;
-    }
-
-    delete notes[pageKey];
-    const nextMeta = { ...meta, noteCount: Math.max(0, meta.noteCount - 1) };
-    await chrome.storage.local.set({ notes, meta: nextMeta });
-  }
+  await ensureStorageDefaults();
 
   async function initForCurrentPage() {
     const { notes, meta } = await getState();
-    if (!meta.enabled) {
+    isEnabled = Boolean(meta.enabled);
+
+    if (!isEnabled) {
       removeNote();
       return;
     }
 
-    const saved = notes[currentPageKey];
-    if (saved) {
-      renderNote(saved);
+    const savedNote = notes[currentPageKey];
+    if (savedNote) {
+      renderNote(savedNote);
     } else {
       removeNote();
     }
@@ -111,11 +38,14 @@
   }
 
   function renderNote(noteData) {
-    removeNote();
+    if (noteRoot) {
+      noteRoot.remove();
+    }
 
     const note = document.createElement('section');
     note.id = NOTE_ID;
     note.className = 'psn-note';
+    note.setAttribute('aria-label', 'Page sticky note');
 
     const position = clampPosition(noteData.position || {});
     note.style.left = `${position.x}px`;
@@ -125,8 +55,8 @@
       <header class="psn-header">
         <strong class="psn-title">Sticky Note</strong>
         <div class="psn-actions">
-          <button type="button" class="psn-btn psn-copy">📋 Copy</button>
-          <button type="button" class="psn-btn psn-delete">🗑 Delete</button>
+          <button type="button" class="psn-btn psn-copy" title="Copy note text">📋 Copy</button>
+          <button type="button" class="psn-btn psn-delete" title="Delete note">🗑 Delete</button>
         </div>
       </header>
       <textarea class="psn-text" placeholder="Write something useful..."></textarea>
@@ -140,7 +70,7 @@
     textArea.value = noteData.text || '';
     copyButton.disabled = !textArea.value.trim();
 
-    const saveDebounced = debounce(async () => {
+    const debouncedSave = debounce(async () => {
       await upsertNote(currentPageKey, {
         text: textArea.value,
         position: {
@@ -152,11 +82,11 @@
 
     textArea.addEventListener('input', () => {
       copyButton.disabled = !textArea.value.trim();
-      saveDebounced();
+      debouncedSave();
     });
 
     deleteButton.addEventListener('click', async () => {
-      await removeNoteFromStore(currentPageKey);
+      await deleteNote(currentPageKey);
       removeNote();
     });
 
@@ -167,8 +97,8 @@
 
       copyCooldown = true;
       copyButton.disabled = true;
-      const originalLabel = copyButton.textContent;
 
+      const originalLabel = copyButton.textContent;
       try {
         await navigator.clipboard.writeText(textArea.value);
         copyButton.textContent = 'Copied!';
@@ -221,10 +151,9 @@
         return;
       }
 
-      const next = clampPosition({
-        x: event.clientX - startOffsetX,
-        y: event.clientY - startOffsetY
-      });
+      const x = event.clientX - startOffsetX;
+      const y = event.clientY - startOffsetY;
+      const next = clampPosition({ x, y });
 
       note.style.left = `${next.x}px`;
       note.style.top = `${next.y}px`;
@@ -244,8 +173,9 @@
 
   async function tryCreateNote() {
     const { notes, meta } = await getState();
+    isEnabled = Boolean(meta.enabled);
 
-    if (!meta.enabled) {
+    if (!isEnabled) {
       return { ok: false, reason: 'disabled' };
     }
 
@@ -267,6 +197,7 @@
 
     await upsertNote(currentPageKey, newNote);
     renderNote(newNote);
+
     return { ok: true, reason: 'created' };
   }
 
@@ -292,7 +223,11 @@
   });
 
   chrome.storage.onChanged.addListener((changes, areaName) => {
-    if (areaName === 'local' && (changes.meta || changes.notes)) {
+    if (areaName !== 'local') {
+      return;
+    }
+
+    if (changes.meta || changes.notes) {
       initForCurrentPage().catch((error) => {
         console.error('Failed to refresh note after storage change:', error);
       });
@@ -313,7 +248,5 @@
   };
 
   observeUrlChange();
-  initForCurrentPage().catch((error) => {
-    console.error('Failed to initialize sticky note content script:', error);
-  });
+  await initForCurrentPage();
 })();
